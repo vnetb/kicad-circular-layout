@@ -1,0 +1,38 @@
+{
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
+    "name": "Circular Layout",
+    "description": "Arrange selected footprints in a circle.",
+    "description_full": "This plugin allows you to arrange selected footprints in a circular pattern on the PCB. After selecting two or more footprints, run the plugin from the Tools menu. A dialog will prompt you to enter the desired diameter for the circle. The footprints will then be evenly spaced around the circumference of a circle centered at the average position of the originally selected footprints.",
+    "identifier": "com.github.vnetb.kicad-circular-layout",
+    "type": "plugin",
+    "author": {
+        "name": "vnetb",
+        "contact": {
+            "web": "https://github.com/vnetb"
+        }
+    },
+    "maintainer": {
+        "name": "vnetb",
+        "contact": {
+            "web": "https://github.com/vnetb"
+        }
+    },
+    "license": "MIT",
+    "resources": {
+        "homepage": "https://github.com/vnetb/kicad-circular-layout",
+        "icon": "plugins/icon.png"
+    },
+    "tags": [
+        "layout",
+        "arrange",
+        "circle",
+        "footprint"
+    ],
+    "versions": [
+        {
+            "version": "0.1.0",
+            "status": "stable",
+            "kicad_version": "8.0"
+        }
+    ]
+}
