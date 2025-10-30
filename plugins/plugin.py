@@ -58,29 +58,43 @@ class SettingsDialog(wx.Dialog):
         self.rotate_checkbox.SetValue(True)
         main_sizer.Add(self.rotate_checkbox, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 10)
 
-        # Orientation dropdown
+        # --- Orientation Dropdown with Custom Angle ---
         orientation_sizer = wx.BoxSizer(wx.HORIZONTAL)
         orientation_label = wx.StaticText(self, label="Outward Face:")
-        self.orientation_choice = wx.Choice(self, choices=["Right", "Up", "Left", "Down"])
+        self.orientation_choices = ["Right", "Up", "Left", "Down", "Custom..."]
+        self.orientation_choice = wx.Choice(self, choices=self.orientation_choices)
         self.orientation_choice.SetSelection(1) # Default to "Up"
+        self.custom_angle_text = wx.TextCtrl(self, value="0")
+        self.custom_angle_text.Show(False) # Hide initially
+
         orientation_sizer.Add(orientation_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        orientation_sizer.Add(self.orientation_choice, 1, wx.EXPAND)
+        orientation_sizer.Add(self.orientation_choice, 1, wx.EXPAND | wx.RIGHT, 5)
+        orientation_sizer.Add(self.custom_angle_text, 1, wx.EXPAND)
         main_sizer.Add(orientation_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
         # Dialog buttons
         button_sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         main_sizer.Add(button_sizer, 0, wx.ALIGN_CENTER | wx.TOP | wx.BOTTOM, 10)
 
-        self.SetSizerAndFit(main_sizer)
+        self.SetSizer(main_sizer)
 
-        # Bind reset button events
+        # Bind events
         self.Bind(wx.EVT_BUTTON, self.on_reset_center_x, self.reset_x_button)
         self.Bind(wx.EVT_BUTTON, self.on_reset_center_y, self.reset_y_button)
+        self.Bind(wx.EVT_CHOICE, self.on_orientation_change, self.orientation_choice)
         
         # Load settings and check if position was set
         position_loaded = self.load_settings()
         if not position_loaded:
             self.CenterOnScreen() # Center only if no position was saved
+        
+        self.Fit()
+
+    def on_orientation_change(self, event):
+        is_custom = (self.orientation_choice.GetStringSelection() == "Custom...")
+        self.custom_angle_text.Show(is_custom)
+        self.GetSizer().Layout()
+        self.Fit()
 
     def on_reset_center_x(self, event):
         self.center_x_text.SetValue(f"{self.initial_center_x_mm:.3f}")
@@ -100,7 +114,15 @@ class SettingsDialog(wx.Dialog):
         self.center_y_text.SetValue(str(settings.get('center_y', self.center_y_text.GetValue())))
         self.dia_text.SetValue(str(settings.get('diameter', '50')))
         self.rotate_checkbox.SetValue(settings.get('rotate', True))
-        self.orientation_choice.SetSelection(settings.get('orientation_index', 1))
+        
+        orientation_index = settings.get('orientation_index', 1)
+        self.orientation_choice.SetSelection(orientation_index)
+
+        if self.orientation_choices[orientation_index] == "Custom...":
+            self.custom_angle_text.SetValue(str(settings.get('custom_angle', '0')))
+            self.custom_angle_text.Show(True)
+        else:
+            self.custom_angle_text.Show(False)
 
         # Load position
         if 'pos_x' in settings and 'pos_y' in settings:
@@ -127,7 +149,8 @@ class SettingsDialog(wx.Dialog):
             'center_y': self.center_y_text.GetValue(),
             'diameter': self.dia_text.GetValue(),
             'rotate': self.rotate_checkbox.GetValue(),
-            'orientation_index': self.orientation_choice.GetSelection()
+            'orientation_index': self.orientation_choice.GetSelection(),
+            'custom_angle': self.custom_angle_text.GetValue()
         }
 
 class Plugin(pcbnew.ActionPlugin):
@@ -181,6 +204,18 @@ class Plugin(pcbnew.ActionPlugin):
             
             should_rotate = settings['rotate']
             orientation_index = settings['orientation_index']
+            orientation_choices = ["Right", "Up", "Left", "Down", "Custom..."]
+
+            if orientation_choices[orientation_index] == "Custom...":
+                try:
+                    rotation_offset_degrees = float(settings['custom_angle'])
+                except ValueError:
+                    wx.MessageBox("Invalid custom angle.", "Error", wx.OK | wx.ICON_ERROR)
+                    return
+            else:
+                # [Right, Up, Left, Down]
+                orientation_map_degrees = [180, 90, 0, -90]
+                rotation_offset_degrees = orientation_map_degrees[orientation_index]
 
         finally:
             dialog.Destroy()
@@ -198,10 +233,6 @@ class Plugin(pcbnew.ActionPlugin):
         def natural_sort_key(s):
             return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
         footprints.sort(key=lambda fp: natural_sort_key(fp.GetReference()))
-
-        # [Right, Up, Left, Down]
-        orientation_map_degrees = [180, 90, 0, -90]
-        rotation_offset_degrees = orientation_map_degrees[orientation_index]
 
         for i, footprint in enumerate(footprints):
             angle_rad = start_angle_rad + (i * angle_step_rad)
