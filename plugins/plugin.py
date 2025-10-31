@@ -47,6 +47,13 @@ class SettingsDialog(wx.Dialog):
         grid_sizer.Add(self.dia_text, 1, wx.EXPAND)
         grid_sizer.Add((0, 0)) # Spacer for the 3rd column
 
+        # Start Angle
+        start_angle_label = wx.StaticText(self, label="Start Angle (deg):")
+        self.start_angle_text = wx.TextCtrl(self, value="90")
+        grid_sizer.Add(start_angle_label, 0, wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
+        grid_sizer.Add(self.start_angle_text, 1, wx.EXPAND)
+        grid_sizer.Add((0, 0)) # Spacer for the 3rd column
+
         main_sizer.Add(grid_sizer, 1, wx.EXPAND | wx.ALL, 10)
         # --- End of new layout ---
 
@@ -71,6 +78,16 @@ class SettingsDialog(wx.Dialog):
         orientation_sizer.Add(self.orientation_choice, 1, wx.EXPAND | wx.RIGHT, 5)
         orientation_sizer.Add(self.custom_angle_text, 1, wx.EXPAND)
         main_sizer.Add(orientation_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        # --- Layout Direction Dropdown ---
+        direction_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        direction_label = wx.StaticText(self, label="Layout Direction:")
+        self.direction_choices = ["Clockwise", "Counter-clockwise"]
+        self.direction_choice = wx.Choice(self, choices=self.direction_choices)
+        self.direction_choice.SetSelection(0) # Default to Clockwise
+        direction_sizer.Add(direction_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        direction_sizer.Add(self.direction_choice, 1, wx.EXPAND)
+        main_sizer.Add(direction_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 
         # Dialog buttons
         button_sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
@@ -113,7 +130,10 @@ class SettingsDialog(wx.Dialog):
         self.center_x_text.SetValue(str(settings.get('center_x', self.center_x_text.GetValue())))
         self.center_y_text.SetValue(str(settings.get('center_y', self.center_y_text.GetValue())))
         self.dia_text.SetValue(str(settings.get('diameter', '50')))
+        self.start_angle_text.SetValue(str(settings.get('start_angle', '90')))
         self.rotate_checkbox.SetValue(settings.get('rotate', True))
+
+        self.direction_choice.SetSelection(settings.get('direction_index', 0))
         
         orientation_index = settings.get('orientation_index', 1)
         self.orientation_choice.SetSelection(orientation_index)
@@ -148,7 +168,9 @@ class SettingsDialog(wx.Dialog):
             'center_x': self.center_x_text.GetValue(),
             'center_y': self.center_y_text.GetValue(),
             'diameter': self.dia_text.GetValue(),
+            'start_angle': self.start_angle_text.GetValue(),
             'rotate': self.rotate_checkbox.GetValue(),
+            'direction_index': self.direction_choice.GetSelection(),
             'orientation_index': self.orientation_choice.GetSelection(),
             'custom_angle': self.custom_angle_text.GetValue()
         }
@@ -198,8 +220,9 @@ class Plugin(pcbnew.ActionPlugin):
                 diameter = float(settings['diameter'])
                 center_x_mm = float(settings['center_x'])
                 center_y_mm = float(settings['center_y'])
+                start_angle_degrees = float(settings['start_angle'])
             except ValueError:
-                wx.MessageBox("Invalid number format for diameter or center coordinates.", "Error", wx.OK | wx.ICON_ERROR)
+                wx.MessageBox("Invalid number format for diameter, center, or start angle.", "Error", wx.OK | wx.ICON_ERROR)
                 return
             
             should_rotate = settings['rotate']
@@ -225,9 +248,13 @@ class Plugin(pcbnew.ActionPlugin):
         center_y = pcbnew.FromMM(center_y_mm)
         center = pcbnew.VECTOR2I(int(center_x), int(center_y))
 
-        # Start at 12 o'clock and go clockwise
-        start_angle_rad = math.pi / 2
-        angle_step_rad = -2 * math.pi / count
+        # Convert start angle to radians for calculation
+        start_angle_rad = math.radians(start_angle_degrees)
+
+        angle_step_rad = 2 * math.pi / count
+        if settings['direction_index'] == 0: # Clockwise
+            angle_step_rad = -angle_step_rad
+
 
         # Sort footprints by reference designator (natural sort D1, D2, D10)
         def natural_sort_key(s):
